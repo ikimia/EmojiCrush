@@ -1,0 +1,55 @@
+html {
+  touch-action: none;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+body {
+  margin: 0;
+  background-color: #333;
+}
+
+#game {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#boardArea {
+  position: relative;
+}
+
+.board {
+  display: flex;
+  flex-direction: column;
+  pointer-events: all;
+}
+
+.row {
+  display: flex;
+}
+
+.square {
+  background-color: white;
+  width: 16vmin;
+  height: 16vmin;
+}
+
+.row:nth-child(odd) .square:nth-child(odd),
+.row:nth-child(even) .square:nth-child(even) {
+  background-color: black;
+}
+
+.square.selected,
+.square.hovered {
+  opacity: 0.25;
+}
+
+.emoji {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  transition: 0.25s ease-in;
+  font-size: 9vmin;
+}
