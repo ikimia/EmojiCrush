@@ -1,5 +1,17 @@
 let hoveredSquare = null;
 
+const fruitCodes = {
+  watermelon: 0x1f349,
+  grapes: 0x1f347,
+  orange: 0x1f34a,
+  redApple: 0x1f34e,
+  greenApple: 0x1f34f,
+  // cherry: 0x1f352,
+  // strawberry: 0x1f353,
+  // kiwi: 0x1f95d,
+};
+const fruitCodeValues = Object.values(fruitCodes);
+
 function createSquare() {
   const square = document.createElement("div");
   square.classList.add("square");
@@ -91,6 +103,7 @@ function crushMatches(board, matchIndexes) {
 
 async function performGravity(board) {
   const promises = [];
+  const newEmojiIndexes = [];
   for (let c = 0; c < board.width; c++) {
     const queue = [];
     for (let r = board.height - 1; r >= 0; r--) {
@@ -106,13 +119,16 @@ async function performGravity(board) {
         const fromIndex = queue.shift();
         if (fromIndex !== toIndex) {
           promises.push(moveEmoji(board, fromIndex, toIndex));
+          newEmojiIndexes.push(toIndex);
         }
       } else {
         promises.push(addEmoji(board, toIndex, delta));
+        newEmojiIndexes.push(toIndex);
       }
     }
   }
   await Promise.all(promises);
+  return newEmojiIndexes;
 }
 
 async function moveEmoji(board, fromIndex, toIndex) {
@@ -198,8 +214,21 @@ async function performMatchCycle(board, coordinates) {
     }
   }
   if (!allMatches.size) return false;
-  await crushMatches(board, allMatches);
-  await performGravity(board);
+  while (allMatches.size) {
+    await crushMatches(board, allMatches);
+    allMatches.clear();
+    const newEmojiIndexes = await performGravity(board);
+    const newCoordinates = newEmojiIndexes.map((i) => [
+      Math.floor(i / board.width),
+      i % board.width,
+    ]);
+    for (const [i, j] of newCoordinates) {
+      const matches = getMatches(board, i, j);
+      for (const match of matches) {
+        allMatches.add(match);
+      }
+    }
+  }
   return true;
 }
 
@@ -249,17 +278,6 @@ function createBoard(width, height) {
   return board;
 }
 
-const fruitCodes = {
-  watermelon: 0x1f349,
-  grapes: 0x1f347,
-  orange: 0x1f34a,
-  redApple: 0x1f34e,
-  greenApple: 0x1f34f,
-  cherry: 0x1f352,
-  strawberry: 0x1f353,
-  kiwi: 0x1f95d,
-};
-
 function calculateEmojiPosition(board, emojiIndex, rowDelta = 0) {
   const row = Math.floor(emojiIndex / board.width) - rowDelta;
   const column = emojiIndex % board.width;
@@ -268,7 +286,6 @@ function calculateEmojiPosition(board, emojiIndex, rowDelta = 0) {
     left: `${(column + 0.5) * (100 / board.width)}%`,
   };
 }
-const fruitCodeValues = Object.values(fruitCodes);
 
 async function addEmoji(board, index, initialRowDelta = 0) {
   const element = document.createElement("div");
@@ -296,7 +313,7 @@ function addEmojis(board) {
   }
 }
 
-function startGame() {
+async function startGame() {
   const board = createBoard(6, 8);
   board.emojisElement = document.createElement("div");
   addEmojis(board);
@@ -304,6 +321,14 @@ function startGame() {
   boardAreaElement.appendChild(board.element);
   boardAreaElement.appendChild(board.emojisElement);
   window.board = board;
+  const coordinates = [];
+  for (let i = 0; i < 8; i++) {
+    for (let j = 0; j < 6; j++) {
+      coordinates.push([i, j]);
+    }
+  }
+  await new Promise((resolve) => setTimeout(resolve, 1));
+  await performMatchCycle(board, coordinates);
 }
 
 startGame();
