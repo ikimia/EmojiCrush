@@ -11,7 +11,8 @@ function testMatch(potentialSet, board) {
   while (potentialSet.length) {
     const currentElement = potentialSet.pop();
     if (
-      currentElement.textContent === matchSet[matchSet.length - 1].textContent
+      board.emojis[currentElement].textContent ===
+      board.emojis[matchSet[matchSet.length - 1]].textContent
     ) {
       matchSet.push(currentElement);
     } else {
@@ -24,42 +25,9 @@ function testMatch(potentialSet, board) {
     }
   }
   if (matchSet.length >= 3) {
-    matchSet[0].addEventListener(
-      "transitionend",
-      () => {
-        for (let c = 0; c < board.width; c++) {
-          const queue = [];
-          for (let r = board.height - 1; r >= 0; r--) {
-            const index = r * board.width + c;
-            if (matchSet.includes(board.emojis[index])) {
-              board.emojis[index].remove();
-              board.emojis[index] = null;
-            } else {
-              queue.push(index);
-            }
-          }
-          const delta = board.height - queue.length;
-          for (let r = board.height - 1; r >= 0; r--) {
-            const toIndex = r * board.width + c;
-            if (queue.length) {
-              const fromIndex = queue.shift();
-              if (fromIndex !== toIndex) {
-                moveEmoji(board, fromIndex, toIndex);
-              }
-            } else {
-              addEmoji(board, toIndex, delta);
-            }
-          }
-        }
-      },
-      { once: true }
-    );
-    for (const emoji of matchSet) {
-      emoji.style.opacity = 0;
-    }
-    return true;
+    return matchSet;
   }
-  return false;
+  return [];
 }
 
 function buildSet(
@@ -73,12 +41,12 @@ function buildSet(
   const end = endRow * board.width + endColumn;
   const step = rowStep * board.width + columnStep;
   for (let i = start; i <= end; i += step) {
-    set.push(board.emojis[i]);
+    set.push(i);
   }
   return set;
 }
 
-function checkMatch(board, row, column) {
+function getMatches(board, row, column) {
   const columnMatch = testMatch(
     buildSet(
       board,
@@ -97,7 +65,52 @@ function checkMatch(board, row, column) {
     ),
     board
   );
-  return columnMatch || rowMatch;
+  return new Set([...columnMatch, ...rowMatch]);
+}
+
+function crushMatches(board, matchIndexes) {
+  return new Promise((resolve) => {
+    if (!matchIndexes.size) return resolve();
+    const matchEmojis = Array.from(matchIndexes, (i) => board.emojis[i]);
+    matchEmojis[0].addEventListener(
+      "transitionend",
+      () => {
+        matchIndexes.forEach((i) => {
+          board.emojis[i].remove();
+          board.emojis[i] = null;
+        });
+        resolve();
+      },
+      { once: true }
+    );
+    matchEmojis.forEach((e) => {
+      e.style.opacity = 0;
+    });
+  });
+}
+
+function startGravity(board) {
+  for (let c = 0; c < board.width; c++) {
+    const queue = [];
+    for (let r = board.height - 1; r >= 0; r--) {
+      const index = r * board.width + c;
+      if (board.emojis[index] !== null) {
+        queue.push(index);
+      }
+    }
+    const delta = board.height - queue.length;
+    for (let r = board.height - 1; r >= 0; r--) {
+      const toIndex = r * board.width + c;
+      if (queue.length) {
+        const fromIndex = queue.shift();
+        if (fromIndex !== toIndex) {
+          moveEmoji(board, fromIndex, toIndex);
+        }
+      } else {
+        addEmoji(board, toIndex, delta);
+      }
+    }
+  }
 }
 
 function moveEmoji(board, fromIndex, toIndex) {
@@ -154,11 +167,16 @@ function onPointerUp(board) {
 
       board.emojis[aIndex].addEventListener(
         "transitionend",
-        () => {
-          const aMatch = checkMatch(board, i, j);
-          const bMatch = checkMatch(board, si, sj);
-          if (aMatch || bMatch) return;
-          moveEmoji(board, aIndex, bIndex);
+        async () => {
+          const aMatch = getMatches(board, i, j);
+          const bMatch = getMatches(board, si, sj);
+          const allMatches = new Set([...aMatch, ...bMatch]);
+          if (!allMatches.size) {
+            moveEmoji(board, aIndex, bIndex);
+            return;
+          }
+          await crushMatches(board, allMatches);
+          startGravity(board);
         },
         { once: true }
       );
