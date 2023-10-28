@@ -1,14 +1,9 @@
-let hoveredSquare = null;
-
 const fruitCodes = {
   watermelon: 0x1f349,
   grapes: 0x1f347,
   orange: 0x1f34a,
   redApple: 0x1f34e,
   greenApple: 0x1f34f,
-  // cherry: 0x1f352,
-  // strawberry: 0x1f353,
-  // kiwi: 0x1f95d,
 };
 const fruitCodeValues = Object.values(fruitCodes);
 
@@ -65,9 +60,18 @@ function buildSet(
   return set;
 }
 
-function getMatches(board, index) {
+function getCoordinates(index, board) {
   const row = Math.floor(index / board.width);
   const column = index % board.width;
+  return [row, column];
+}
+
+function getIndex(row, column, board) {
+  return row * board.width + column;
+}
+
+function getMatches(board, index) {
+  const [row, column] = getCoordinates(index, board);
   const columnMatch = testMatch(
     buildSet(
       board,
@@ -109,14 +113,14 @@ async function performGravity(board) {
   for (let c = 0; c < board.width; c++) {
     const queue = [];
     for (let r = board.height - 1; r >= 0; r--) {
-      const index = r * board.width + c;
+      const index = getIndex(r, c, board);
       if (board.emojis[index] !== null) {
         queue.push(index);
       }
     }
     const delta = board.height - queue.length;
     for (let r = board.height - 1; r >= 0; r--) {
-      const toIndex = r * board.width + c;
+      const toIndex = getIndex(r, c, board);
       if (queue.length) {
         const fromIndex = queue.shift();
         if (fromIndex !== toIndex) {
@@ -154,73 +158,76 @@ async function moveEmojiPosition(board, index) {
   });
 }
 
-function onPointerDown(i, j, board) {
-  return function () {
-    if (board.selectedSquare) {
-      const { i: si, j: sj } = board.selectedSquare;
-      board.squareRows[si][sj].classList.remove("selected");
-      board.selectedSquare = null;
-    } else {
-      board.selectedSquare = { i, j };
-      board.squareRows[i][j].classList.add("selected");
-    }
+function onPointerDown(board) {
+  return function (e) {
+    const overElement = document.elementFromPoint(e.clientX, e.clientY);
+    if (!overElement.classList.contains("square")) return;
+    board.selectedSquare = board.squares.indexOf(overElement);
+    overElement.classList.add("selected");
   };
 }
 
 function onPointerUp(board) {
   return async function () {
-    if (!board.selectedSquare) return;
-    const { i: si, j: sj } = board.selectedSquare;
-    board.squareRows[si][sj].classList.remove("selected");
-    board.selectedSquare = null;
-    if (!hoveredSquare) return;
-    const squareRow = hoveredSquare.parentElement;
-    const j = Array.prototype.indexOf.call(squareRow.children, hoveredSquare);
-    const i = Array.prototype.indexOf.call(
-      squareRow.parentElement.children,
-      squareRow
-    );
-    hoveredSquare.classList.remove("hovered");
-    hoveredSquare = null;
-    if (
-      (i === si && Math.abs(j - sj) === 1) ||
-      (j === sj && Math.abs(i - si) === 1)
-    ) {
-      const aIndex = si * board.width + sj;
-      const bIndex = i * board.width + j;
-      await moveEmoji(board, aIndex, bIndex);
-      const foundMatches = await performMatchCycle(board, [aIndex, bIndex]);
-      if (!foundMatches) {
-        await moveEmoji(board, aIndex, bIndex);
-      }
+    if (board.selectedSquare === -1) return;
+    const selectedSquareIndex = board.selectedSquare;
+    board.squares[selectedSquareIndex].classList.remove("selected");
+    board.selectedSquare = -1;
+    if (board.hoveredSquare === -1) return;
+    const hoveredSquareIndex = board.squares.indexOf(board.hoveredSquare);
+    board.hoveredSquare.classList.remove("hovered");
+    board.hoveredSquare = -1;
+    await moveEmoji(board, selectedSquareIndex, hoveredSquareIndex);
+    const foundMatches = await performMatchCycle(board, [
+      selectedSquareIndex,
+      hoveredSquareIndex,
+    ]);
+    if (!foundMatches) {
+      await moveEmoji(board, selectedSquareIndex, hoveredSquareIndex);
     }
   };
 }
 
+function calculateHoveredSquareIndex(overElement, board) {
+  if (!overElement.classList.contains("square")) return -1;
+  const index = board.squares.indexOf(overElement);
+  const [i, j] = getCoordinates(index, board);
+  const selectedIndex = board.selectedSquare;
+  const [si, sj] = getCoordinates(selectedIndex, board);
+  if (si === i) {
+    const delta = Math.abs(sj - j);
+    if (delta === 1) return getIndex(i, j, board);
+    if (delta === 2 || delta === 3)
+      return getIndex(i, sj + Math.sign(j - sj), board);
+  }
+  if (sj === j) {
+    const delta = Math.abs(si - i);
+    if (delta === 1) return getIndex(i, j, board);
+    if (delta === 2 || delta === 3)
+      return getIndex(si + Math.sign(i - si), j, board);
+  }
+  return -1;
+}
+
 function onPointerMove(board) {
   return function (e) {
-    if (!board.selectedSquare) return;
+    if (board.selectedSquare === -1) return;
     const overElement = document.elementFromPoint(e.clientX, e.clientY);
-    if (hoveredSquare && overElement !== hoveredSquare) {
-      hoveredSquare.classList.remove("hovered");
-      hoveredSquare = null;
-    }
-    if (!overElement.classList.contains("square")) return;
-    const squareRow = overElement.parentElement;
-    const j = Array.prototype.indexOf.call(squareRow.children, overElement);
-    const i = Array.prototype.indexOf.call(
-      squareRow.parentElement.children,
-      squareRow
-    );
-    const { i: si, j: sj } = board.selectedSquare;
+    const calculatedIndex = calculateHoveredSquareIndex(overElement, board);
     if (
-      (i === si && j === sj) ||
-      (i === si && Math.abs(j - sj) === 1) ||
-      (j === sj && Math.abs(i - si) === 1)
-    ) {
-      hoveredSquare = board.squareRows[i][j];
-      hoveredSquare.classList.add("hovered");
+      calculatedIndex === board.selectedSquare ||
+      calculatedIndex === board.hoveredSquare
+    )
+      return;
+    if (calculatedIndex === -1) {
+      if (board.hoveredSquare !== -1) {
+        board.hoveredSquare.classList.remove("hovered");
+        board.hoveredSquare = -1;
+      }
+      return;
     }
+    board.hoveredSquare = board.squares[calculatedIndex];
+    board.hoveredSquare.classList.add("hovered");
   };
 }
 
@@ -250,30 +257,29 @@ async function performMatchCycle(board, coordinates) {
 function createBoard(width, height) {
   const element = document.createElement("div");
   element.classList.add("board");
-  const squareRows = [];
+  element.style.gridTemplateColumns = `repeat(${width}, auto)`;
+  element.style.gridTemplateRows = `repeat(${height}, auto)`;
   const board = {
     element,
     width,
     height,
-    squareRows,
-    selectedSquare: null,
+    selectedSquare: -1,
+    hoveredSquare: -1,
+    squares: [],
     emojis: [],
   };
-  for (let i = 0; i < height; i++) {
-    const row = document.createElement("div");
-    row.classList.add("row");
-    const squareRow = [];
-    squareRows.push(squareRow);
-    for (let j = 0; j < width; j++) {
-      const square = createSquare();
-      square.addEventListener("pointerdown", onPointerDown(i, j, board));
-      row.appendChild(square);
-      squareRow.push(square);
-    }
-    element.appendChild(row);
+  for (let i = 0; i < width * height; i++) {
+    const square = createSquare();
+    element.appendChild(square);
+    board.squares.push(square);
   }
-  board.element.addEventListener("pointerup", onPointerUp(board));
-  board.element.addEventListener("pointermove", onPointerMove(board));
+  board.squares[0].classList.add("top-left");
+  board.squares[width - 1].classList.add("top-right");
+  board.squares[(height - 1) * width].classList.add("bottom-left");
+  board.squares[board.squares.length - 1].classList.add("bottom-right");
+  document.addEventListener("pointerdown", onPointerDown(board));
+  document.addEventListener("pointerup", onPointerUp(board));
+  document.addEventListener("pointermove", onPointerMove(board));
   return board;
 }
 

@@ -22,29 +22,36 @@ body {
 }
 
 .board {
-  display: flex;
-  flex-direction: column;
+  display: grid;
   pointer-events: all;
-}
-
-.row {
-  display: flex;
+  background-color: green;
+  border-radius: 1.75vmin;
+  border: 0.375vmin solid green;
 }
 
 .square {
-  background-color: white;
+  background-color: rgba(255, 255, 255, 0.8);
   width: 16vmin;
   height: 16vmin;
+  border: 0.375vmin solid green;
 }
 
-.row:nth-child(odd) .square:nth-child(odd),
-.row:nth-child(even) .square:nth-child(even) {
-  background-color: black;
+.square.top-left {
+  border-top-left-radius: 1.5vmin;
+}
+.square.top-right {
+  border-top-right-radius: 1.5vmin;
+}
+.square.bottom-left {
+  border-bottom-left-radius: 1.5vmin;
+}
+.square.bottom-right {
+  border-bottom-right-radius: 1.5vmin;
 }
 
 .square.selected,
 .square.hovered {
-  opacity: 0.25;
+  background-color: rgba(255, 255, 255, 0.5);
 }
 
 .emoji {
