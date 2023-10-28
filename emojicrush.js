@@ -12,6 +12,13 @@ const fruitCodes = {
 };
 const fruitCodeValues = Object.values(fruitCodes);
 
+function awaitTransition(element, action) {
+  return new Promise((resolve) => {
+    element.addEventListener("transitionend", () => resolve(), { once: true });
+    action();
+  });
+}
+
 function createSquare() {
   const square = document.createElement("div");
   square.classList.add("square");
@@ -58,7 +65,9 @@ function buildSet(
   return set;
 }
 
-function getMatches(board, row, column) {
+function getMatches(board, index) {
+  const row = Math.floor(index / board.width);
+  const column = index % board.width;
   const columnMatch = testMatch(
     buildSet(
       board,
@@ -80,24 +89,17 @@ function getMatches(board, row, column) {
   return new Set([...columnMatch, ...rowMatch]);
 }
 
-function crushMatches(board, matchIndexes) {
-  return new Promise((resolve) => {
-    if (!matchIndexes.size) return resolve();
-    const matchEmojis = Array.from(matchIndexes, (i) => board.emojis[i]);
-    matchEmojis[0].addEventListener(
-      "transitionend",
-      () => {
-        matchIndexes.forEach((i) => {
-          board.emojis[i].remove();
-          board.emojis[i] = null;
-        });
-        resolve();
-      },
-      { once: true }
-    );
+async function crushMatches(board, matchIndexes) {
+  if (!matchIndexes.size) return;
+  const matchEmojis = Array.from(matchIndexes, (i) => board.emojis[i]);
+  await awaitTransition(matchEmojis[0], () => {
     matchEmojis.forEach((e) => {
       e.style.opacity = 0;
     });
+  });
+  matchIndexes.forEach((i) => {
+    board.emojis[i].remove();
+    board.emojis[i] = null;
   });
 }
 
@@ -144,14 +146,7 @@ async function moveEmoji(board, fromIndex, toIndex) {
 }
 
 async function moveEmojiPosition(board, index) {
-  await new Promise((resolve) => {
-    board.emojis[index].addEventListener(
-      "transitionend",
-      () => {
-        resolve();
-      },
-      { once: true }
-    );
+  await awaitTransition(board.emojis[index], () => {
     Object.assign(
       board.emojis[index].style,
       calculateEmojiPosition(board, index)
@@ -194,10 +189,7 @@ function onPointerUp(board) {
       const aIndex = si * board.width + sj;
       const bIndex = i * board.width + j;
       await moveEmoji(board, aIndex, bIndex);
-      const foundMatches = await performMatchCycle(board, [
-        [i, j],
-        [si, sj],
-      ]);
+      const foundMatches = await performMatchCycle(board, [aIndex, bIndex]);
       if (!foundMatches) {
         await moveEmoji(board, aIndex, bIndex);
       }
@@ -205,53 +197,8 @@ function onPointerUp(board) {
   };
 }
 
-async function performMatchCycle(board, coordinates) {
-  const allMatches = new Set();
-  for (const [i, j] of coordinates) {
-    const matches = getMatches(board, i, j);
-    for (const match of matches) {
-      allMatches.add(match);
-    }
-  }
-  if (!allMatches.size) return false;
-  while (allMatches.size) {
-    await crushMatches(board, allMatches);
-    allMatches.clear();
-    const newEmojiIndexes = await performGravity(board);
-    const newCoordinates = newEmojiIndexes.map((i) => [
-      Math.floor(i / board.width),
-      i % board.width,
-    ]);
-    for (const [i, j] of newCoordinates) {
-      const matches = getMatches(board, i, j);
-      for (const match of matches) {
-        allMatches.add(match);
-      }
-    }
-  }
-  return true;
-}
-
-function createBoard(width, height) {
-  const element = document.createElement("div");
-  element.classList.add("board");
-  const squareRows = [];
-  const board = { element, width, height, squareRows, selectedSquare: null };
-  for (let i = 0; i < height; i++) {
-    const row = document.createElement("div");
-    row.classList.add("row");
-    const squareRow = [];
-    squareRows.push(squareRow);
-    for (let j = 0; j < width; j++) {
-      const square = createSquare();
-      square.addEventListener("pointerdown", onPointerDown(i, j, board));
-      square.addEventListener("pointerup", onPointerUp(board));
-      row.appendChild(square);
-      squareRow.push(square);
-    }
-    element.appendChild(row);
-  }
-  board.element.addEventListener("pointermove", (e) => {
+function onPointerMove(board) {
+  return function (e) {
     if (!board.selectedSquare) return;
     const overElement = document.elementFromPoint(e.clientX, e.clientY);
     if (hoveredSquare && overElement !== hoveredSquare) {
@@ -274,7 +221,59 @@ function createBoard(width, height) {
       hoveredSquare = board.squareRows[i][j];
       hoveredSquare.classList.add("hovered");
     }
-  });
+  };
+}
+
+async function performMatchCycle(board, coordinates) {
+  const allMatches = new Set();
+  for (const index of coordinates) {
+    const matches = getMatches(board, index);
+    for (const match of matches) {
+      allMatches.add(match);
+    }
+  }
+  if (!allMatches.size) return false;
+  while (allMatches.size) {
+    await crushMatches(board, allMatches);
+    allMatches.clear();
+    const newEmojiIndexes = await performGravity(board);
+    for (const index of newEmojiIndexes) {
+      const matches = getMatches(board, index);
+      for (const match of matches) {
+        allMatches.add(match);
+      }
+    }
+  }
+  return true;
+}
+
+function createBoard(width, height) {
+  const element = document.createElement("div");
+  element.classList.add("board");
+  const squareRows = [];
+  const board = {
+    element,
+    width,
+    height,
+    squareRows,
+    selectedSquare: null,
+    emojis: [],
+  };
+  for (let i = 0; i < height; i++) {
+    const row = document.createElement("div");
+    row.classList.add("row");
+    const squareRow = [];
+    squareRows.push(squareRow);
+    for (let j = 0; j < width; j++) {
+      const square = createSquare();
+      square.addEventListener("pointerdown", onPointerDown(i, j, board));
+      row.appendChild(square);
+      squareRow.push(square);
+    }
+    element.appendChild(row);
+  }
+  board.element.addEventListener("pointerup", onPointerUp(board));
+  board.element.addEventListener("pointermove", onPointerMove(board));
   return board;
 }
 
@@ -304,29 +303,22 @@ async function addEmoji(board, index, initialRowDelta = 0) {
   }
 }
 
-function addEmojis(board) {
-  board.emojis = [];
-  for (let i = 0; i < board.height; i++) {
-    for (let j = 0; j < board.width; j++) {
-      addEmoji(board, i * board.width + j);
-    }
-  }
-}
-
 async function startGame() {
   const board = createBoard(6, 8);
   board.emojisElement = document.createElement("div");
-  addEmojis(board);
+  for (let i = 0; i < board.width * board.height; i++) {
+    addEmoji(board, i);
+  }
+
   const boardAreaElement = document.getElementById("boardArea");
   boardAreaElement.appendChild(board.element);
   boardAreaElement.appendChild(board.emojisElement);
   window.board = board;
-  const coordinates = [];
-  for (let i = 0; i < 8; i++) {
-    for (let j = 0; j < 6; j++) {
-      coordinates.push([i, j]);
-    }
-  }
+
+  const coordinates = Array.from(
+    { length: board.width * board.height },
+    (_, i) => i
+  );
   await new Promise((resolve) => setTimeout(resolve, 1));
   await performMatchCycle(board, coordinates);
 }
