@@ -89,7 +89,8 @@ function crushMatches(board, matchIndexes) {
   });
 }
 
-function startGravity(board) {
+async function performGravity(board) {
+  const promises = [];
   for (let c = 0; c < board.width; c++) {
     const queue = [];
     for (let r = board.height - 1; r >= 0; r--) {
@@ -104,30 +105,42 @@ function startGravity(board) {
       if (queue.length) {
         const fromIndex = queue.shift();
         if (fromIndex !== toIndex) {
-          moveEmoji(board, fromIndex, toIndex);
+          promises.push(moveEmoji(board, fromIndex, toIndex));
         }
       } else {
-        addEmoji(board, toIndex, delta);
+        promises.push(addEmoji(board, toIndex, delta));
       }
     }
   }
+  await Promise.all(promises);
 }
 
-function moveEmoji(board, fromIndex, toIndex) {
+async function moveEmoji(board, fromIndex, toIndex) {
   if (!board.emojis[fromIndex]) return;
   [board.emojis[toIndex], board.emojis[fromIndex]] = [
     board.emojis[fromIndex],
     board.emojis[toIndex],
   ];
-  Object.assign(
-    board.emojis[toIndex].style,
-    calculateEmojiPosition(board, toIndex)
-  );
-  if (!board.emojis[fromIndex]) return;
-  Object.assign(
-    board.emojis[fromIndex].style,
-    calculateEmojiPosition(board, fromIndex)
-  );
+  if (board.emojis[fromIndex]) {
+    moveEmojiPosition(board, fromIndex);
+  }
+  await moveEmojiPosition(board, toIndex);
+}
+
+async function moveEmojiPosition(board, index) {
+  await new Promise((resolve) => {
+    board.emojis[index].addEventListener(
+      "transitionend",
+      () => {
+        resolve();
+      },
+      { once: true }
+    );
+    Object.assign(
+      board.emojis[index].style,
+      calculateEmojiPosition(board, index)
+    );
+  });
 }
 
 function onPointerDown(i, j, board) {
@@ -144,7 +157,7 @@ function onPointerDown(i, j, board) {
 }
 
 function onPointerUp(board) {
-  return function () {
+  return async function () {
     if (!board.selectedSquare) return;
     const { i: si, j: sj } = board.selectedSquare;
     board.squareRows[si][sj].classList.remove("selected");
@@ -164,25 +177,30 @@ function onPointerUp(board) {
     ) {
       const aIndex = si * board.width + sj;
       const bIndex = i * board.width + j;
-
-      board.emojis[aIndex].addEventListener(
-        "transitionend",
-        async () => {
-          const aMatch = getMatches(board, i, j);
-          const bMatch = getMatches(board, si, sj);
-          const allMatches = new Set([...aMatch, ...bMatch]);
-          if (!allMatches.size) {
-            moveEmoji(board, aIndex, bIndex);
-            return;
-          }
-          await crushMatches(board, allMatches);
-          startGravity(board);
-        },
-        { once: true }
-      );
-      moveEmoji(board, aIndex, bIndex);
+      await moveEmoji(board, aIndex, bIndex);
+      const foundMatches = await performMatchCycle(board, [
+        [i, j],
+        [si, sj],
+      ]);
+      if (!foundMatches) {
+        await moveEmoji(board, aIndex, bIndex);
+      }
     }
   };
+}
+
+async function performMatchCycle(board, coordinates) {
+  const allMatches = new Set();
+  for (const [i, j] of coordinates) {
+    const matches = getMatches(board, i, j);
+    for (const match of matches) {
+      allMatches.add(match);
+    }
+  }
+  if (!allMatches.size) return false;
+  await crushMatches(board, allMatches);
+  await performGravity(board);
+  return true;
 }
 
 function createBoard(width, height) {
@@ -252,24 +270,21 @@ function calculateEmojiPosition(board, emojiIndex, rowDelta = 0) {
 }
 const fruitCodeValues = Object.values(fruitCodes);
 
-function addEmoji(board, index, initialRowDelta = 0) {
+async function addEmoji(board, index, initialRowDelta = 0) {
   const element = document.createElement("div");
   element.classList.add("emoji");
   const { top, left } = calculateEmojiPosition(board, index, initialRowDelta);
   element.style.top = top;
   element.style.left = left;
-  if (initialRowDelta !== 0) {
-    setTimeout(() => {
-      const { top, left } = calculateEmojiPosition(board, index);
-      element.style.top = top;
-      element.style.left = left;
-    }, 1);
-  }
   const fruitCodeValue =
     fruitCodeValues[Math.floor(Math.random() * fruitCodeValues.length)];
   element.innerText = String.fromCodePoint(fruitCodeValue);
   board.emojis[index] = element;
   board.emojisElement.appendChild(element);
+  if (initialRowDelta !== 0) {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    await moveEmojiPosition(board, index);
+  }
 }
 
 function addEmojis(board) {
