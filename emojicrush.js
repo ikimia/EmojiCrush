@@ -1,3 +1,21 @@
+let mediaQuery = null;
+let mediaQueryHandler = null;
+
+function setMediaQuery(width, height) {
+  if (mediaQuery) {
+    mediaQuery.removeEventListener("change", mediaQueryHandler);
+  }
+  mediaQuery = window.matchMedia(`(min-aspect-ratio: ${width}/${height})`);
+  mediaQueryHandler = () => {
+    const squareSize = mediaQuery.matches
+      ? `calc(97vh / ${height})`
+      : `calc(97vw / ${width})`;
+    document.documentElement.style.setProperty("--square-size", squareSize);
+  };
+  mediaQuery.addEventListener("change", mediaQueryHandler);
+  mediaQueryHandler();
+}
+
 const fruitCodes = {
   watermelon: 0x1f349,
   grapes: 0x1f347,
@@ -255,6 +273,7 @@ async function performMatchCycle(board, coordinates) {
 }
 
 function createBoard(width, height) {
+  setMediaQuery(width, height);
   const element = document.createElement("div");
   element.classList.add("board");
   element.style.gridTemplateColumns = `repeat(${width}, auto)`;

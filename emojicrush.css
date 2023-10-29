@@ -1,3 +1,9 @@
+:root {
+  --board-border-width: calc(var(--square-size) / 40);
+  --square-border-radius: calc(var(--square-size) / 8);
+  --emoji-size: calc(var(--square-size) * 0.45);
+}
+
 html {
   touch-action: none;
   pointer-events: none;
@@ -28,29 +34,29 @@ body {
   display: grid;
   pointer-events: all;
   background-color: green;
-  border-radius: 1.75vmin;
-  border: 0.375vmin solid green;
+  border-radius: calc(var(--square-border-radius) + var(--board-border-width));
+  border: var(--board-border-width) solid green;
 }
 
 .square {
   box-sizing: border-box;
   background-color: rgba(255, 255, 255, 0.8);
-  width: 16vmin;
-  height: 16vmin;
-  border: 0.375vmin solid green;
+  width: var(--square-size);
+  height: var(--square-size);
+  border: var(--board-border-width) solid green;
 }
 
 .square.top-left {
-  border-top-left-radius: 1.5vmin;
+  border-top-left-radius: var(--square-border-radius);
 }
 .square.top-right {
-  border-top-right-radius: 1.5vmin;
+  border-top-right-radius: var(--square-border-radius);
 }
 .square.bottom-left {
-  border-bottom-left-radius: 1.5vmin;
+  border-bottom-left-radius: var(--square-border-radius);
 }
 .square.bottom-right {
-  border-bottom-right-radius: 1.5vmin;
+  border-bottom-right-radius: var(--square-border-radius);
 }
 
 .square.selected,
@@ -62,5 +68,5 @@ body {
   position: absolute;
   transform: translate(-50%, -50%);
   transition: 0.25s ease-in;
-  font-size: 9vmin;
+  font-size: var(--emoji-size);
 }
