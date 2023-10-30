@@ -65,8 +65,25 @@ body {
 .emoji {
   position: absolute;
   transform: translate(-50%, -50%);
-  transition: top 0.25s ease-in-out, left 0.25s ease-in-out,
-    opacity 0.25s linear;
   font-size: var(--emoji-size);
   pointer-events: none;
+}
+
+.emoji[data-emoji="0"]::after {
+  content: "\1f349";
+}
+.emoji[data-emoji="1"]::after {
+  content: "\1f347";
+}
+.emoji[data-emoji="2"]::after {
+  content: "\1f34a";
+}
+.emoji[data-emoji="3"]::after {
+  content: "\1f34e";
+}
+.emoji[data-emoji="4"]::after {
+  content: "\1f34f";
+}
+.emoji[data-emoji="bomb"]::after {
+  content: "\1f4a3";
 }

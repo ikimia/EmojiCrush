@@ -1,6 +1,7 @@
+const numEmojis = 5;
+
 let mediaQuery = null;
 let mediaQueryHandler = null;
-
 function setMediaQuery(width, height) {
   if (mediaQuery) {
     mediaQuery.removeEventListener("change", mediaQueryHandler);
@@ -15,16 +16,6 @@ function setMediaQuery(width, height) {
   mediaQuery.addEventListener("change", mediaQueryHandler);
   mediaQueryHandler();
 }
-
-const fruitCodes = {
-  watermelon: 0x1f349,
-  grapes: 0x1f347,
-  orange: 0x1f34a,
-  redApple: 0x1f34e,
-  greenApple: 0x1f34f,
-};
-const fruitCodeValues = Object.values(fruitCodes);
-const bombEmojiCode = 0x1f4a3;
 
 function awaitTransition(element, action) {
   return new Promise((resolve) => {
@@ -44,8 +35,8 @@ function testMatch(potentialSet, board) {
   while (potentialSet.length) {
     const currentElement = potentialSet.pop();
     if (
-      board.emojis[currentElement].textContent ===
-      board.emojis[matchSet[matchSet.length - 1]].textContent
+      board.emojis[currentElement].dataset.emoji ===
+      board.emojis[matchSet[matchSet.length - 1]].dataset.emoji
     ) {
       matchSet.push(currentElement);
     } else {
@@ -90,8 +81,7 @@ function getIndex(row, column, board) {
 }
 
 function isBomb(board, index) {
-  const emoji = board.emojis[index].textContent;
-  return emoji === String.fromCodePoint(bombEmojiCode);
+  return board.emojis[index].dataset.emoji === "bomb";
 }
 
 function getBombMatches(board, firstBombIndex) {
@@ -149,9 +139,7 @@ async function crushMatches(board, matchIndexes) {
   if (bombIndexes.length) {
     for (let i = 0; i < 2; i++) {
       await Promise.all(bombIndexes.map((i) => setEmojiOpacity(board, i, 0)));
-      await Promise.all(
-        bombIndexes.map((i) => setEmojiOpacity(board, i, null))
-      );
+      await Promise.all(bombIndexes.map((i) => setEmojiOpacity(board, i, 1)));
     }
   }
   await Promise.all(
@@ -200,25 +188,23 @@ async function moveEmoji(board, fromIndex, toIndex) {
     board.emojis[toIndex],
   ];
   if (board.emojis[fromIndex]) {
-    moveEmojiPosition(board, fromIndex);
+    setEmojiIndex(board, fromIndex);
   }
-  await moveEmojiPosition(board, toIndex);
+  await setEmojiIndex(board, toIndex);
 }
 
-async function moveEmojiPosition(board, index) {
-  await awaitTransition(board.emojis[index], () => {
-    Object.assign(
-      board.emojis[index].style,
-      calculateEmojiPosition(board, index)
-    );
-  });
+async function setEmojiIndex(board, index) {
+  const element = board.emojis[index];
+  const properties = calculateEmojiPosition(board, index);
+  const options = { duration: 250, fill: "forwards", easing: "ease-in-out" };
+  await element.animate(properties, options).finished;
 }
 
 async function setEmojiOpacity(board, index, value) {
-  const emoji = board.emojis[index];
-  await awaitTransition(emoji, () => {
-    emoji.style.opacity = value;
-  });
+  const element = board.emojis[index];
+  const properties = { opacity: value };
+  const options = { duration: 250, fill: "forwards" };
+  await element.animate(properties, options).finished;
 }
 
 let p1 = null;
@@ -316,8 +302,8 @@ async function performMatchCycle(board, indexes) {
     for (const index of bombIndexes) {
       allMatches.delete(index);
       await setEmojiOpacity(board, index, 0);
-      board.emojis[index].textContent = String.fromCodePoint(bombEmojiCode);
-      await setEmojiOpacity(board, index, null);
+      board.emojis[index].dataset.emoji = "bomb";
+      await setEmojiOpacity(board, index, 1);
     }
     bombIndexes = [];
     await crushMatches(board, allMatches);
@@ -386,14 +372,12 @@ async function addEmoji(board, index, initialRowDelta = 0) {
   const { top, left } = calculateEmojiPosition(board, index, initialRowDelta);
   element.style.top = top;
   element.style.left = left;
-  const fruitCodeValue =
-    fruitCodeValues[Math.floor(Math.random() * fruitCodeValues.length)];
-  element.innerText = String.fromCodePoint(fruitCodeValue);
+  element.dataset.emoji = Math.floor(Math.random() * numEmojis);
   board.emojis[index] = element;
   board.emojisElement.appendChild(element);
   if (initialRowDelta !== 0) {
     await new Promise((resolve) => setTimeout(resolve, 1));
-    await moveEmojiPosition(board, index);
+    await setEmojiIndex(board, index);
   }
 }
 
