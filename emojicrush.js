@@ -24,10 +24,11 @@ const fruitCodes = {
   greenApple: 0x1f34f,
 };
 const fruitCodeValues = Object.values(fruitCodes);
+const bombEmojiCode = 0x1f4a3;
 
 function awaitTransition(element, action) {
   return new Promise((resolve) => {
-    element.addEventListener("transitionend", () => resolve(), { once: true });
+    element.addEventListener("transitionend", resolve, { once: true });
     action();
   });
 }
@@ -88,8 +89,29 @@ function getIndex(row, column, board) {
   return row * board.width + column;
 }
 
+function isBomb(board, index) {
+  const emoji = board.emojis[index].textContent;
+  return emoji === String.fromCodePoint(bombEmojiCode);
+}
+
+function getBombMatches(board, row, column) {
+  const matches = new Set();
+  for (let i = row - 1; i <= row + 1; i++) {
+    for (let j = column - 1; j <= column + 1; j++) {
+      if (i < 0 || i > board.height - 1 || j < 0 || j > board.width - 1) {
+        continue;
+      }
+      matches.add(getIndex(i, j, board));
+    }
+  }
+  return matches;
+}
+
 function getMatches(board, index) {
   const [row, column] = getCoordinates(index, board);
+  if (isBomb(board, index)) {
+    return getBombMatches(board, row, column);
+  }
   const columnMatch = testMatch(
     buildSet(
       board,
@@ -113,12 +135,18 @@ function getMatches(board, index) {
 
 async function crushMatches(board, matchIndexes) {
   if (!matchIndexes.size) return;
-  const matchEmojis = Array.from(matchIndexes, (i) => board.emojis[i]);
-  await awaitTransition(matchEmojis[0], () => {
-    matchEmojis.forEach((e) => {
-      e.style.opacity = 0;
-    });
-  });
+  const bombIndexes = Array.from(matchIndexes).filter((i) => isBomb(board, i));
+  if (bombIndexes.length) {
+    for (let i = 0; i < 2; i++) {
+      await Promise.all(bombIndexes.map((i) => setEmojiOpacity(board, i, 0)));
+      await Promise.all(
+        bombIndexes.map((i) => setEmojiOpacity(board, i, null))
+      );
+    }
+  }
+  await Promise.all(
+    Array.from(matchIndexes, (i) => setEmojiOpacity(board, i, 0))
+  );
   matchIndexes.forEach((i) => {
     board.emojis[i].remove();
     board.emojis[i] = null;
@@ -173,6 +201,13 @@ async function moveEmojiPosition(board, index) {
       board.emojis[index].style,
       calculateEmojiPosition(board, index)
     );
+  });
+}
+
+async function setEmojiOpacity(board, index, value) {
+  const emoji = board.emojis[index];
+  await awaitTransition(emoji, () => {
+    emoji.style.opacity = value;
   });
 }
 
@@ -249,27 +284,49 @@ function onPointerMove(board) {
   };
 }
 
-async function performMatchCycle(board, coordinates) {
+async function performMatchCycle(board, indexes) {
   const allMatches = new Set();
-  for (const index of coordinates) {
+  let bombIndexes = [];
+  for (const index of indexes) {
     const matches = getMatches(board, index);
+    if (
+      matches.size > 3 &&
+      !isBomb(board, index) &&
+      !bombIndexes.some((bombIndex) => matches.has(bombIndex))
+    ) {
+      bombIndexes.push(index);
+    }
     for (const match of matches) {
       allMatches.add(match);
     }
   }
-  if (!allMatches.size) return false;
+  const crushedDuringFirstCycle = allMatches.size > 0;
   while (allMatches.size) {
+    for (const index of bombIndexes) {
+      allMatches.delete(index);
+      await setEmojiOpacity(board, index, 0);
+      board.emojis[index].textContent = String.fromCodePoint(bombEmojiCode);
+      await setEmojiOpacity(board, index, null);
+    }
+    bombIndexes = [];
     await crushMatches(board, allMatches);
     allMatches.clear();
     const newEmojiIndexes = await performGravity(board);
     for (const index of newEmojiIndexes) {
+      if (isBomb(board, index)) continue;
       const matches = getMatches(board, index);
+      if (
+        matches.size > 3 &&
+        !bombIndexes.some((bombIndex) => matches.has(bombIndex))
+      ) {
+        bombIndexes.push(index);
+      }
       for (const match of matches) {
         allMatches.add(match);
       }
     }
   }
-  return true;
+  return crushedDuringFirstCycle;
 }
 
 function createBoard(width, height) {
