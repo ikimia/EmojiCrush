@@ -221,8 +221,10 @@ async function setEmojiOpacity(board, index, value) {
   });
 }
 
+let p1 = null;
 function onPointerDown(board) {
   return function (e) {
+    p1 = { x: e.clientX, y: e.clientY };
     const overElement = document.elementFromPoint(e.clientX, e.clientY);
     if (!overElement.classList.contains("square")) return;
     board.selectedSquare = board.squares.indexOf(overElement);
@@ -232,65 +234,52 @@ function onPointerDown(board) {
 
 function onPointerUp(board) {
   return async function () {
-    if (board.selectedSquare === -1) return;
-    const selectedSquareIndex = board.selectedSquare;
-    board.squares[selectedSquareIndex].classList.remove("selected");
+    const { selectedSquare, hoveredSquare } = board;
     board.selectedSquare = -1;
-    if (board.hoveredSquare === -1) return;
-    const hoveredSquareIndex = board.squares.indexOf(board.hoveredSquare);
-    board.hoveredSquare.classList.remove("hovered");
     board.hoveredSquare = -1;
-    await moveEmoji(board, selectedSquareIndex, hoveredSquareIndex);
+    if (selectedSquare === -1) return;
+    board.squares[selectedSquare].classList.remove("selected");
+    if (hoveredSquare === -1) return;
+    board.squares[hoveredSquare].classList.remove("hovered");
+    await moveEmoji(board, selectedSquare, hoveredSquare);
     const foundMatches = await performMatchCycle(board, [
-      selectedSquareIndex,
-      hoveredSquareIndex,
+      selectedSquare,
+      hoveredSquare,
     ]);
     if (!foundMatches) {
-      await moveEmoji(board, selectedSquareIndex, hoveredSquareIndex);
+      await moveEmoji(board, selectedSquare, hoveredSquare);
     }
   };
 }
 
-function calculateHoveredSquareIndex(overElement, board) {
-  if (!overElement.classList.contains("square")) return -1;
-  const index = board.squares.indexOf(overElement);
-  const [i, j] = getCoordinates(index, board);
-  const selectedIndex = board.selectedSquare;
-  const [si, sj] = getCoordinates(selectedIndex, board);
-  if (si === i) {
-    const delta = Math.abs(sj - j);
-    if (delta === 1) return getIndex(i, j, board);
-    if (delta === 2 || delta === 3)
-      return getIndex(i, sj + Math.sign(j - sj), board);
-  }
-  if (sj === j) {
-    const delta = Math.abs(si - i);
-    if (delta === 1) return getIndex(i, j, board);
-    if (delta === 2 || delta === 3)
-      return getIndex(si + Math.sign(i - si), j, board);
-  }
-  return -1;
+function calculateHoveredSquareIndex(board, p2) {
+  const squareSize = board.squares[0].getBoundingClientRect().width;
+  const distance = Math.sqrt((p2.x - p1.x) ** 2 + (p2.y - p1.y) ** 2);
+  if (distance < squareSize / 2 || distance > 2.75 * squareSize) return -1;
+
+  const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
+  if (Math.abs(angle) < 45) return board.selectedSquare + 1;
+  if (Math.abs(angle) > 135) return board.selectedSquare - 1;
+  return board.selectedSquare + Math.sign(angle) * board.width;
 }
 
 function onPointerMove(board) {
   return function (e) {
     if (board.selectedSquare === -1) return;
-    const overElement = document.elementFromPoint(e.clientX, e.clientY);
-    const calculatedIndex = calculateHoveredSquareIndex(overElement, board);
+    const p2 = { x: e.clientX, y: e.clientY };
+    const calculatedIndex = calculateHoveredSquareIndex(board, p2);
     if (
       calculatedIndex === board.selectedSquare ||
       calculatedIndex === board.hoveredSquare
     )
       return;
-    if (calculatedIndex === -1) {
-      if (board.hoveredSquare !== -1) {
-        board.hoveredSquare.classList.remove("hovered");
-        board.hoveredSquare = -1;
-      }
-      return;
+    if (board.hoveredSquare !== -1) {
+      board.squares[board.hoveredSquare].classList.remove("hovered");
     }
-    board.hoveredSquare = board.squares[calculatedIndex];
-    board.hoveredSquare.classList.add("hovered");
+    board.hoveredSquare = calculatedIndex;
+    if (board.hoveredSquare !== -1) {
+      board.squares[board.hoveredSquare].classList.add("hovered");
+    }
   };
 }
 
