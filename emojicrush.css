@@ -6,7 +6,6 @@
 
 html {
   touch-action: none;
-  pointer-events: none;
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
@@ -32,7 +31,6 @@ body {
 
 .board {
   display: grid;
-  pointer-events: all;
   background-color: green;
   border-radius: calc(var(--square-border-radius) + var(--board-border-width));
   border: var(--board-border-width) solid green;
@@ -70,4 +68,5 @@ body {
   transition: top 0.25s ease-in-out, left 0.25s ease-in-out,
     opacity 0.25s linear;
   font-size: var(--emoji-size);
+  pointer-events: none;
 }

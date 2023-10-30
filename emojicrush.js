@@ -284,6 +284,7 @@ function onPointerMove(board) {
 }
 
 async function performMatchCycle(board, indexes) {
+  document.documentElement.style.pointerEvents = "none";
   const allMatches = new Set();
   let bombIndexes = [];
   for (const index of indexes) {
@@ -325,6 +326,7 @@ async function performMatchCycle(board, indexes) {
       }
     }
   }
+  document.documentElement.style.pointerEvents = null;
   return crushedDuringFirstCycle;
 }
 
