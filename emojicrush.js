@@ -94,24 +94,34 @@ function isBomb(board, index) {
   return emoji === String.fromCodePoint(bombEmojiCode);
 }
 
-function getBombMatches(board, row, column) {
+function getBombMatches(board, firstBombIndex) {
   const matches = new Set();
-  for (let i = row - 1; i <= row + 1; i++) {
-    for (let j = column - 1; j <= column + 1; j++) {
-      if (i < 0 || i > board.height - 1 || j < 0 || j > board.width - 1) {
-        continue;
+  const accountedBombs = new Set();
+  const bombStack = [firstBombIndex];
+  while (bombStack.length) {
+    const bombIndex = bombStack.pop();
+    accountedBombs.add(bombIndex);
+    const [row, column] = getCoordinates(bombIndex, board);
+    for (let i = row - 1; i <= row + 1; i++) {
+      for (let j = column - 1; j <= column + 1; j++) {
+        if (i < 0 || i > board.height - 1) continue;
+        if (j < 0 || j > board.width - 1) continue;
+        const index = getIndex(i, j, board);
+        matches.add(index);
+        if (isBomb(board, index) && !accountedBombs.has(index)) {
+          bombStack.push(index);
+        }
       }
-      matches.add(getIndex(i, j, board));
     }
   }
   return matches;
 }
 
 function getMatches(board, index) {
-  const [row, column] = getCoordinates(index, board);
   if (isBomb(board, index)) {
-    return getBombMatches(board, row, column);
+    return getBombMatches(board, index);
   }
+  const [row, column] = getCoordinates(index, board);
   const columnMatch = testMatch(
     buildSet(
       board,
