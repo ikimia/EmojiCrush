@@ -258,9 +258,20 @@ function calculateHoveredSquareIndex(board, p2) {
   if (distance < squareSize / 2 || distance > 2.75 * squareSize) return -1;
 
   const angle = Math.atan2(p2.y - p1.y, p2.x - p1.x) * (180 / Math.PI);
-  if (Math.abs(angle) < 45) return board.selectedSquare + 1;
-  if (Math.abs(angle) > 135) return board.selectedSquare - 1;
-  return board.selectedSquare + Math.sign(angle) * board.width;
+  if (Math.abs(angle) < 45) {
+    if (board.selectedSquare % board.width === board.width - 1) return -1;
+    return board.selectedSquare + 1;
+  }
+  if (Math.abs(angle) > 135) {
+    if (board.selectedSquare % board.width === 0) return -1;
+    return board.selectedSquare - 1;
+  }
+  if (angle > 0) {
+    if (board.selectedSquare >= board.width * (board.height - 1)) return -1;
+    return board.selectedSquare + board.width;
+  }
+  if (board.selectedSquare < board.width) return -1;
+  return board.selectedSquare - board.width;
 }
 
 function onPointerMove(board) {
