@@ -108,9 +108,6 @@ function getBombMatches(board, firstBombIndex) {
 }
 
 function getMatches(board, index) {
-  if (isBomb(board, index)) {
-    return getBombMatches(board, index);
-  }
   const [row, column] = getCoordinates(index, board);
   const columnMatch = testMatch(
     buildSet(
@@ -149,6 +146,7 @@ async function crushMatches(board, matchIndexes) {
     board.emojis[i].remove();
     board.emojis[i] = null;
   });
+  matchIndexes.clear();
 }
 
 async function performGravity(board) {
@@ -280,48 +278,45 @@ function onPointerMove(board) {
   };
 }
 
+async function matchNonBombIndexesAndConvertBombs(
+  board,
+  indexes,
+  matchIndexes
+) {
+  const newBombIndexes = new Set();
+  for (const index of indexes) {
+    if (isBomb(board, index)) continue;
+    const matches = getMatches(board, index);
+    matches.forEach((match) => matchIndexes.add(match));
+    if (matches.size <= 3) continue;
+    if (Array.from(matches).some((m) => newBombIndexes.has(m))) continue;
+    newBombIndexes.add(index);
+  }
+  const promises = Array.from(newBombIndexes, async (index) => {
+    matchIndexes.delete(index);
+    await setEmojiOpacity(board, index, 0);
+    board.emojis[index].dataset.emoji = "bomb";
+    await setEmojiOpacity(board, index, 1);
+  });
+  await Promise.all(promises);
+  newBombIndexes.clear();
+}
+
 async function performMatchCycle(board, indexes) {
   document.documentElement.style.pointerEvents = "none";
-  const allMatches = new Set();
-  let bombIndexes = [];
-  for (const index of indexes) {
-    const matches = getMatches(board, index);
-    if (
-      matches.size > 3 &&
-      !isBomb(board, index) &&
-      !bombIndexes.some((bombIndex) => matches.has(bombIndex))
-    ) {
-      bombIndexes.push(index);
-    }
-    for (const match of matches) {
-      allMatches.add(match);
+  const preMatchBombIndexes = indexes.filter((i) => isBomb(board, i));
+  const matchIndexes = new Set();
+  await matchNonBombIndexesAndConvertBombs(board, indexes, matchIndexes);
+  for (const index of preMatchBombIndexes) {
+    for (const match of getBombMatches(board, index)) {
+      matchIndexes.add(match);
     }
   }
-  const crushedDuringFirstCycle = allMatches.size > 0;
-  while (allMatches.size) {
-    for (const index of bombIndexes) {
-      allMatches.delete(index);
-      await setEmojiOpacity(board, index, 0);
-      board.emojis[index].dataset.emoji = "bomb";
-      await setEmojiOpacity(board, index, 1);
-    }
-    bombIndexes = [];
-    await crushMatches(board, allMatches);
-    allMatches.clear();
-    const newEmojiIndexes = await performGravity(board);
-    for (const index of newEmojiIndexes) {
-      if (isBomb(board, index)) continue;
-      const matches = getMatches(board, index);
-      if (
-        matches.size > 3 &&
-        !bombIndexes.some((bombIndex) => matches.has(bombIndex))
-      ) {
-        bombIndexes.push(index);
-      }
-      for (const match of matches) {
-        allMatches.add(match);
-      }
-    }
+  const crushedDuringFirstCycle = matchIndexes.size > 0;
+  while (matchIndexes.size) {
+    await crushMatches(board, matchIndexes);
+    const newIndexes = await performGravity(board);
+    await matchNonBombIndexesAndConvertBombs(board, newIndexes, matchIndexes);
   }
   document.documentElement.style.pointerEvents = null;
   return crushedDuringFirstCycle;
