@@ -31,20 +31,19 @@ function createSquare() {
 }
 
 function testMatch(potentialSet, board) {
-  const matchSet = [potentialSet.pop()];
+  let matchSet = [potentialSet.pop()];
   while (potentialSet.length) {
     const currentElement = potentialSet.pop();
     if (
-      board.emojis[currentElement].dataset.emoji ===
-      board.emojis[matchSet[matchSet.length - 1]].dataset.emoji
+      board.emojis[currentElement].element.dataset.emoji ===
+      board.emojis[matchSet[0]].element.dataset.emoji
     ) {
       matchSet.push(currentElement);
     } else {
       if (matchSet.length >= 3) {
         break;
       } else {
-        matchSet.splice(0, matchSet.length);
-        matchSet.push(currentElement);
+        matchSet = [currentElement];
       }
     }
   }
@@ -81,7 +80,7 @@ function getIndex(row, column, board) {
 }
 
 function isBomb(board, index) {
-  return board.emojis[index].dataset.emoji === "bomb";
+  return board.emojis[index].element.dataset.emoji === "bomb";
 }
 
 function getBombMatches(board, firstBombIndex) {
@@ -143,7 +142,7 @@ async function crushMatches(board, matchIndexes) {
     Array.from(matchIndexes, (i) => setEmojiOpacity(board, i, 0))
   );
   matchIndexes.forEach((i) => {
-    board.emojis[i].remove();
+    board.emojis[i].element.remove();
     board.emojis[i] = null;
   });
   matchIndexes.clear();
@@ -192,14 +191,16 @@ async function moveEmoji(board, fromIndex, toIndex) {
 }
 
 async function setEmojiIndex(board, index) {
-  const element = board.emojis[index];
-  const properties = calculateEmojiPosition(board, index);
+  const { element, position: fromPosition } = board.emojis[index];
+  const toPosition = calculateEmojiPosition(board, index);
+  board.emojis[index].position = toPosition;
+  const properties = { transform: [fromPosition, toPosition] };
   const options = { duration: 250, fill: "forwards", easing: "ease-in-out" };
   await element.animate(properties, options).finished;
 }
 
 async function setEmojiOpacity(board, index, value) {
-  const element = board.emojis[index];
+  const element = board.emojis[index].element;
   const properties = { opacity: value };
   const options = { duration: 250, fill: "forwards" };
   await element.animate(properties, options).finished;
@@ -295,7 +296,7 @@ async function matchNonBombIndexesAndConvertBombs(
   const promises = Array.from(newBombIndexes, async (index) => {
     matchIndexes.delete(index);
     await setEmojiOpacity(board, index, 0);
-    board.emojis[index].dataset.emoji = "bomb";
+    board.emojis[index].element.dataset.emoji = "bomb";
     await setEmojiOpacity(board, index, 1);
   });
   await Promise.all(promises);
@@ -353,22 +354,19 @@ function createBoard(width, height) {
 }
 
 function calculateEmojiPosition(board, emojiIndex, rowDelta = 0) {
-  const row = Math.floor(emojiIndex / board.width) - rowDelta;
-  const column = emojiIndex % board.width;
-  return {
-    top: `${(row + 0.5) * (100 / board.height)}%`,
-    left: `${(column + 0.5) * (100 / board.width)}%`,
-  };
+  const [row, column] = getCoordinates(emojiIndex, board);
+  const tx = `calc((${column} + 0.5) * var(--square-size) - 50%)`;
+  const ty = `calc((${row - rowDelta} + 0.5) * var(--square-size) - 50%)`;
+  return `translate(${tx}, ${ty})`;
 }
 
 async function addEmoji(board, index, initialRowDelta = 0) {
   const element = document.createElement("div");
   element.classList.add("emoji");
-  const { top, left } = calculateEmojiPosition(board, index, initialRowDelta);
-  element.style.top = top;
-  element.style.left = left;
+  const position = calculateEmojiPosition(board, index, initialRowDelta);
+  element.style.transform = position;
   element.dataset.emoji = Math.floor(Math.random() * numEmojis);
-  board.emojis[index] = element;
+  board.emojis[index] = { element, position };
   board.emojisElement.appendChild(element);
   if (initialRowDelta !== 0) {
     await new Promise((resolve) => setTimeout(resolve, 1));

@@ -31,17 +31,16 @@ body {
 
 .board {
   display: grid;
-  background-color: green;
   border-radius: calc(var(--square-border-radius) + var(--board-border-width));
-  border: var(--board-border-width) solid green;
+  border: var(--board-border-width) solid goldenrod;
 }
 
 .square {
   box-sizing: border-box;
-  background-color: rgba(255, 255, 255, 0.8);
+  background-color: lightyellow;
   width: var(--square-size);
   height: var(--square-size);
-  border: var(--board-border-width) solid green;
+  border: var(--board-border-width) solid goldenrod;
 }
 
 .square.top-left {
@@ -59,31 +58,37 @@ body {
 
 .square.selected,
 .square.hovered {
-  background-color: rgba(255, 255, 255, 0.5);
+  background-color: rgba(255, 255, 224, 0.175);
 }
 
 .emoji {
   position: absolute;
-  transform: translate(-50%, -50%);
-  font-size: var(--emoji-size);
+  top: 0;
+  left: 0;
   pointer-events: none;
+  width: var(--emoji-size);
+  height: var(--emoji-size);
+  background-size: contain;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
-.emoji[data-emoji="0"]::after {
-  content: "\1f349";
+.emoji[data-emoji="0"] {
+  background-image: url("./svg/apple.svg");
 }
-.emoji[data-emoji="1"]::after {
-  content: "\1f347";
+.emoji[data-emoji="1"] {
+  background-image: url("./svg/watermelon.svg");
 }
-.emoji[data-emoji="2"]::after {
-  content: "\1f34a";
+.emoji[data-emoji="2"] {
+  background-image: url("./svg/orange.svg");
 }
-.emoji[data-emoji="3"]::after {
-  content: "\1f34e";
+.emoji[data-emoji="3"] {
+  background-image: url("./svg/grapes2.svg");
 }
-.emoji[data-emoji="4"]::after {
-  content: "\1f34f";
+.emoji[data-emoji="4"] {
+  background-image: url("./svg/pineapple.svg");
+  height: calc(1.3 * var(--emoji-size));
 }
-.emoji[data-emoji="bomb"]::after {
-  content: "\1f4a3";
+.emoji[data-emoji="bomb"] {
+  background-image: url("./svg/bomb2.svg");
 }
