@@ -181,7 +181,10 @@ async function setEmojiIndex(board, index) {
   board.emojis[index].position = toPosition;
   const properties = { transform: [fromPosition, toPosition] };
   const options = { duration: 250, fill: "forwards", easing: "ease-in-out" };
-  await element.animate(properties, options).finished;
+  const animation = element.animate(properties, options);
+  await animation.finished;
+  element.style.transform = toPosition;
+  animation.cancel();
 }
 
 async function setEmojiOpacity(board, index, value) {
