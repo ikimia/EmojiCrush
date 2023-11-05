@@ -1,22 +1,5 @@
 const numEmojis = 5;
 
-let mediaQuery = null;
-let mediaQueryHandler = null;
-function setMediaQuery(width, height) {
-  if (mediaQuery) {
-    mediaQuery.removeEventListener("change", mediaQueryHandler);
-  }
-  mediaQuery = window.matchMedia(`(min-aspect-ratio: ${width}/${height})`);
-  mediaQueryHandler = () => {
-    const squareSize = mediaQuery.matches
-      ? `calc(97vh / ${height})`
-      : `calc(97vw / ${width})`;
-    document.documentElement.style.setProperty("--square-size", squareSize);
-  };
-  mediaQuery.addEventListener("change", mediaQueryHandler);
-  mediaQueryHandler();
-}
-
 function awaitTransition(element, action) {
   return new Promise((resolve) => {
     element.addEventListener("transitionend", resolve, { once: true });
@@ -169,7 +152,8 @@ async function performGravity(board) {
           newEmojiIndexes.push(toIndex);
         }
       } else {
-        promises.push(addEmoji(board, toIndex, delta));
+        addEmoji(board, toIndex, delta);
+        promises.push(setEmojiIndex(board, toIndex));
         newEmojiIndexes.push(toIndex);
       }
     }
@@ -184,10 +168,11 @@ async function moveEmoji(board, fromIndex, toIndex) {
     board.emojis[fromIndex],
     board.emojis[toIndex],
   ];
+  const promises = [setEmojiIndex(board, toIndex)];
   if (board.emojis[fromIndex]) {
-    setEmojiIndex(board, fromIndex);
+    promises.push(setEmojiIndex(board, fromIndex));
   }
-  await setEmojiIndex(board, toIndex);
+  await Promise.all(promises);
 }
 
 async function setEmojiIndex(board, index) {
@@ -324,11 +309,10 @@ async function performMatchCycle(board, indexes) {
 }
 
 function createBoard(width, height) {
-  setMediaQuery(width, height);
+  document.documentElement.style.setProperty("--board-width", width);
+  document.documentElement.style.setProperty("--board-height", height);
   const element = document.createElement("div");
   element.classList.add("board");
-  element.style.gridTemplateColumns = `repeat(${width}, auto)`;
-  element.style.gridTemplateRows = `repeat(${height}, auto)`;
   const board = {
     element,
     width,
@@ -368,10 +352,6 @@ async function addEmoji(board, index, initialRowDelta = 0) {
   element.dataset.emoji = Math.floor(Math.random() * numEmojis);
   board.emojis[index] = { element, position };
   board.emojisElement.appendChild(element);
-  if (initialRowDelta !== 0) {
-    await new Promise((resolve) => setTimeout(resolve, 1));
-    await setEmojiIndex(board, index);
-  }
 }
 
 async function startGame() {
@@ -390,7 +370,6 @@ async function startGame() {
     { length: board.width * board.height },
     (_, i) => i
   );
-  await new Promise((resolve) => setTimeout(resolve, 1));
   await performMatchCycle(board, coordinates);
 }
 

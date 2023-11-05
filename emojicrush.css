@@ -1,4 +1,8 @@
 :root {
+  --square-size: min(
+    calc(97vh / var(--board-height)),
+    calc(97vw / var(--board-width))
+  );
   --board-border-width: calc(var(--square-size) / 40);
   --square-border-radius: calc(var(--square-size) / 8);
   --emoji-size: calc(var(--square-size) * 0.45);
@@ -31,6 +35,8 @@ body {
 
 .board {
   display: grid;
+  grid-template-columns: repeat(var(--board-width), auto);
+  grid-template-rows: repeat(var(--board-height), auto);
   border-radius: calc(var(--square-border-radius) + var(--board-border-width));
   border: var(--board-border-width) solid goldenrod;
 }
